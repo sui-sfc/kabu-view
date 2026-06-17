@@ -412,13 +412,27 @@
     if (!isFinite(close) || c[3] === 'N/D') return null;
     return { price: close, date: c[1], time: c[2], symbol: c[0] };
   }
+  async function fetchWithTimeout(url, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try { return await fetch(url, { signal: ctrl.signal }); }
+    finally { clearTimeout(t); }
+  }
   async function stooqLookup(sym) {
     const url = 'https://stooq.com/q/l/?s=' + encodeURIComponent(sym) + '&f=sd2t2c&h&e=csv';
-    try { const r = await fetch(url); if (r.ok) { const p = parseStooq(await r.text()); if (p) return p; } } catch (e) {}
-    try {
-      const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url));
-      if (r.ok) { const p = parseStooq(await r.text()); if (p) return p; }
-    } catch (e) {}
+    const attempts = [
+      url,
+      'https://corsproxy.io/?url=' + encodeURIComponent(url),
+      'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+      'https://thingproxy.freeboard.io/fetch/' + url
+    ];
+    for (const a of attempts) {
+      try {
+        const r = await fetchWithTimeout(a, 8000);
+        if (r.ok) { const p = parseStooq(await r.text()); if (p) return p; }
+      } catch (e) {}
+    }
     throw new Error('取得失敗');
   }
 
