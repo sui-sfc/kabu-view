@@ -58,6 +58,12 @@
   .search-input { flex: 1; min-width: 140px; }
   .toolbar .btn { font-size: 12.5px; padding: 8px 12px; }
 
+  .view-switch { display: flex; gap: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 3px; background: var(--surface); flex: none; }
+  .view-btn { cursor: pointer; border: none; background: transparent; color: var(--muted);
+    font-family: var(--jp); font-size: 12.5px; padding: 6px 10px; border-radius: 6px; transition: .15s; }
+  .view-btn.active { background: var(--accent-soft); color: var(--accent); }
+  .view-btn:hover { color: var(--ink); }
+
   .budget-row { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .budget-row input { width: 140px; background: var(--surface); border: 1px solid var(--line); color: var(--ink);
     font-family: var(--mono); font-size: 13px; padding: 8px 11px; border-radius: 8px; text-align: right; }
@@ -162,6 +168,28 @@
   .pct .chip { display: inline-block; color: var(--done); border: 1px solid var(--done-soft); background: var(--done-soft);
     padding: 1px 7px; border-radius: 99px; font-size: 11px; }
 
+  .table-wrap { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: auto; }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 640px; }
+  .data-table th, .data-table td { padding: 9px 10px; text-align: right; white-space: nowrap; }
+  .data-table th:first-child, .data-table td:first-child { text-align: left; }
+  .data-table thead th { color: var(--muted); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+    border-bottom: 1px solid var(--line); }
+  .data-table tbody tr + tr td { border-top: 1px solid var(--line-soft); }
+  .data-table .chip { display: inline-block; color: var(--done); border: 1px solid var(--done-soft); background: var(--done-soft);
+    padding: 1px 7px; border-radius: 99px; font-size: 11px; }
+  .data-table .pos { color: var(--done); }
+  .data-table .neg { color: var(--err); }
+
+  .chart-wrap { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .chart-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 14px 16px; }
+  .chart-title { color: var(--muted); font-size: 11px; margin-bottom: 10px; letter-spacing: .05em; text-transform: uppercase; }
+  #pieChart { display: block; margin: 0 auto; }
+  .chart-legend { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .legend-name { flex: 1; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-val { color: var(--muted); font-family: var(--mono); flex: none; }
+
   .empty { margin-top: 14px; border: 1px dashed var(--line); border-radius: 12px; padding: 44px 20px; text-align: center; color: var(--muted); }
   .empty p { margin: 0 0 4px; font-size: 14px; color: var(--ink); }
   .empty span { font-size: 12.5px; }
@@ -193,6 +221,11 @@
   </header>
 
   <div class="toolbar">
+    <div class="view-switch" id="viewSwitch">
+      <button class="view-btn active" data-view="card">カード</button>
+      <button class="view-btn" data-view="table">表</button>
+      <button class="view-btn" data-view="chart">グラフ</button>
+    </div>
     <input type="text" class="search-input" id="searchInput" placeholder="銘柄名・コードで検索" />
     <select id="sortSelect">
       <option value="manual">並び替え：登録順</option>
@@ -233,6 +266,28 @@
   </div>
 
   <div class="list" id="list"></div>
+
+  <div class="table-wrap" id="tableWrap" style="display:none;">
+    <table class="data-table">
+      <thead>
+        <tr><th>銘柄</th><th>コード</th><th>保有</th><th>目標</th><th>残り</th><th>株価</th><th>必要額</th><th>達成率</th><th>評価損益</th></tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-wrap" id="chartWrap" style="display:none;">
+    <div class="chart-card">
+      <div class="chart-title">達成率</div>
+      <canvas id="barChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">必要額の内訳</div>
+      <canvas id="pieChart" width="220" height="220"></canvas>
+      <div class="chart-legend" id="pieLegend"></div>
+    </div>
+  </div>
+
   <div class="empty" id="empty">
     <p>まだ銘柄がありません</p>
     <span>「＋ 追加」から証券コード（例: 7867）を入れると株価を自動取得します</span>
@@ -252,6 +307,16 @@
   let holdings = [];
   let sortMode = 'manual';
   let searchTerm = '';
+  let currentView = 'card';
+  const PALETTE = ['#5E92A6', '#7FA988', '#D9B26A', '#D98A8A', '#9B8AD9', '#6AD9C0', '#D96AA0', '#A0A0A0'];
+
+  function matchesSearch(h) {
+    return !searchTerm || (h.name || '').toLowerCase().includes(searchTerm) || (h.symbol || '').toLowerCase().includes(searchTerm);
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
   const yen = n => (n < 0 ? '-¥' : '¥') + Math.round(Math.abs(n)).toLocaleString('ja-JP');
   const numFmt = n => Number(n || 0).toLocaleString('ja-JP');
@@ -356,7 +421,118 @@
     $sumPL.classList.toggle('pos', hasPl && plTotal > 0);
     $sumPL.classList.toggle('neg', hasPl && plTotal < 0);
     pushHistory(total);
+    renderTable();
+    renderCharts();
   }
+
+  // ---------- 表ビュー ----------
+  function renderTable() {
+    const $tbody = document.getElementById('tableBody');
+    const arr = sortedHoldings().filter(matchesSearch);
+    if (!arr.length) {
+      $tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:18px;">該当する銘柄がありません</td></tr>';
+      return;
+    }
+    $tbody.innerHTML = arr.map(h => {
+      const c = calc(h);
+      const plHtml = c.pl !== null ? '<span class="' + (c.pl > 0 ? 'pos' : (c.pl < 0 ? 'neg' : '')) + '">' + yen(c.pl) + '</span>' : '—';
+      return '<tr>' +
+        '<td>' + escapeHtml(h.name || '(無名)') + '</td>' +
+        '<td class="num">' + escapeHtml(h.symbol || '—') + '</td>' +
+        '<td class="num">' + numFmt(c.cur) + '</td>' +
+        '<td class="num">' + numFmt(c.tgt) + '</td>' +
+        '<td class="num">' + numFmt(c.remaining) + '</td>' +
+        '<td class="num">' + (c.price ? yen(c.price) : '—') + '</td>' +
+        '<td class="num">' + yen(c.needed) + '</td>' +
+        '<td class="num">' + (c.done ? '<span class="chip">達成</span>' : Math.round(c.pct) + '%') + '</td>' +
+        '<td class="num">' + plHtml + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  // ---------- グラフビュー ----------
+  function renderCharts() {
+    if (currentView !== 'chart') return;
+    const arr = sortedHoldings().filter(matchesSearch);
+    drawBarChart(arr);
+    drawPieChart(arr);
+  }
+
+  function drawBarChart(arr) {
+    const cv = document.getElementById('barChart');
+    const ctx = cv.getContext('2d');
+    const rowH = 26, padTop = 6, labelW = 96, valW = 46;
+    const cssWidth = Math.max(200, cv.parentElement.clientWidth - 32);
+    const cssHeight = Math.max(rowH, arr.length * rowH + padTop * 2);
+    cv.width = cssWidth; cv.height = cssHeight;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!arr.length) {
+      ctx.fillStyle = cssVar('--muted'); ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('データがありません', 8, cssHeight / 2);
+      return;
+    }
+    const barMaxW = cv.width - labelW - valW;
+    ctx.font = '11px sans-serif';
+    arr.forEach((h, i) => {
+      const c = calc(h);
+      const y = padTop + i * rowH;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = cssVar('--muted'); ctx.textAlign = 'left';
+      const label = h.name || h.symbol || '(無名)';
+      ctx.fillText(label.length > 10 ? label.slice(0, 9) + '…' : label, 0, y + rowH / 2);
+      ctx.fillStyle = cssVar('--accent-soft');
+      ctx.fillRect(labelW, y + 5, barMaxW, rowH - 12);
+      ctx.fillStyle = c.done ? cssVar('--done') : cssVar('--accent');
+      ctx.fillRect(labelW, y + 5, barMaxW * (c.pct / 100), rowH - 12);
+      ctx.fillStyle = cssVar('--ink'); ctx.textAlign = 'right';
+      ctx.fillText(Math.round(c.pct) + '%', cv.width, y + rowH / 2);
+    });
+  }
+
+  function drawPieChart(arr) {
+    const cv = document.getElementById('pieChart');
+    const ctx = cv.getContext('2d');
+    const w = cv.width, h = cv.height;
+    ctx.clearRect(0, 0, w, h);
+    const data = arr.map(h => ({ h, needed: calc(h).needed })).filter(d => d.needed > 0);
+    const $legend = document.getElementById('pieLegend');
+    if (!data.length) {
+      ctx.fillStyle = cssVar('--muted'); ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('必要額のある銘柄がありません', w / 2, h / 2);
+      $legend.innerHTML = '';
+      return;
+    }
+    const total = data.reduce((s, d) => s + d.needed, 0);
+    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 4;
+    let start = -Math.PI / 2;
+    data.forEach((d, i) => {
+      const slice = (d.needed / total) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, start, start + slice);
+      ctx.closePath();
+      ctx.fillStyle = PALETTE[i % PALETTE.length];
+      ctx.fill();
+      start += slice;
+    });
+    $legend.innerHTML = data.map((d, i) =>
+      '<div class="legend-item"><span class="legend-dot" style="background:' + PALETTE[i % PALETTE.length] + '"></span>' +
+      '<span class="legend-name">' + escapeHtml(d.h.name || d.h.symbol || '(無名)') + '</span>' +
+      '<span class="legend-val">' + Math.round(d.needed / total * 100) + '% ・ ' + yen(d.needed) + '</span></div>'
+    ).join('');
+  }
+
+  function applyView() {
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === currentView));
+    const hasHoldings = holdings.length > 0;
+    $list.style.display = (currentView === 'card' && hasHoldings) ? '' : 'none';
+    document.getElementById('tableWrap').style.display = (currentView === 'table' && hasHoldings) ? '' : 'none';
+    document.getElementById('chartWrap').style.display = (currentView === 'chart' && hasHoldings) ? '' : 'none';
+    if (currentView === 'chart') renderCharts();
+  }
+  document.querySelectorAll('.view-btn').forEach(b => b.addEventListener('click', () => {
+    currentView = b.dataset.view; applyView();
+  }));
 
   function refreshCard(card, h) {
     const c = calc(h);
@@ -378,8 +554,7 @@
     $pl.innerHTML = parts.join(' ・ ');
     $pl.style.display = parts.length ? 'flex' : 'none';
 
-    const filterOk = !searchTerm || (h.name || '').toLowerCase().includes(searchTerm) || (h.symbol || '').toLowerCase().includes(searchTerm);
-    card.classList.toggle('hidden-filter', !filterOk);
+    card.classList.toggle('hidden-filter', !matchesSearch(h));
 
     if (c.done && !h._notified) { h._notified = true; notifyAchieved(h); }
     if (!c.done) h._notified = false;
@@ -557,7 +732,7 @@
     save(); renderAll();
   }
 
-  function toggleEmpty() { $empty.style.display = holdings.length ? 'none' : 'block'; }
+  function toggleEmpty() { $empty.style.display = holdings.length ? 'none' : 'block'; applyView(); }
 
   function sortedHoldings() {
     const arr = holdings.slice();
@@ -606,6 +781,7 @@
       const h = holdings.find(x => x.id === card.dataset.id);
       if (h) refreshCard(card, h);
     });
+    renderTable(); renderCharts();
   });
 
   // ---------- 並び替え ----------
