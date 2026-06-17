@@ -17,9 +17,16 @@
     --line: #2D323A; --line-soft: #262B31; --ink: #E9E6E0;
     --muted: #8B9098; --muted-2: #5E646C;
     --accent: #5E92A6; --accent-soft: #2A3940;
-    --done: #7FA988; --done-soft: #283530; --err: #D98A8A;
+    --done: #7FA988; --done-soft: #283530; --err: #D98A8A; --warn: #D9B26A;
     --jp: -apple-system, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
     --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  :root[data-theme="light"] {
+    --bg: #F4F3F0; --surface: #FFFFFF; --surface-2: #F0EFEC;
+    --line: #DDD9D2; --line-soft: #E7E4DE; --ink: #232323;
+    --muted: #75726C; --muted-2: #A3A099;
+    --accent: #3E6E80; --accent-soft: #DCEAEE;
+    --done: #4C8A57; --done-soft: #E1F0E2; --err: #B5453E; --warn: #9A7416;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; }
@@ -27,6 +34,7 @@
     background: var(--bg); color: var(--ink); font-family: var(--jp);
     -webkit-font-smoothing: antialiased; line-height: 1.5; font-variant-numeric: tabular-nums;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    transition: background .2s, color .2s;
   }
   .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .wrap { max-width: 760px; margin: 0 auto; padding: 26px 16px 96px; }
@@ -34,28 +42,64 @@
   header { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
   .title { font-size: 19px; font-weight: 600; letter-spacing: .02em; }
   .subtitle { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
-  .actions { display: flex; gap: 8px; flex: none; }
+  .actions { display: flex; gap: 8px; flex: none; flex-wrap: wrap; }
   .btn { cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
     font-family: var(--jp); font-size: 13px; font-weight: 500; padding: 9px 13px; border-radius: 8px; transition: .15s; }
   .btn:hover { border-color: var(--accent); }
   .btn:active { transform: translateY(1px); }
   .btn:disabled { opacity: .5; }
 
-  .summary { margin-top: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
-    display: grid; grid-template-columns: 1.4fr 1fr; }
+  .toolbar { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .toolbar input[type="text"], .toolbar select {
+    background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+    font-family: var(--jp); font-size: 13px; padding: 8px 11px; border-radius: 8px;
+  }
+  .toolbar input[type="text"]:focus, .toolbar select:focus { outline: none; border-color: var(--accent); }
+  .search-input { flex: 1; min-width: 140px; }
+  .toolbar .btn { font-size: 12.5px; padding: 8px 12px; }
+
+  .budget-row { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .budget-row input { width: 140px; background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+    font-family: var(--mono); font-size: 13px; padding: 8px 11px; border-radius: 8px; text-align: right; }
+  .budget-row input:focus { outline: none; border-color: var(--accent); }
+  .budget-row label { color: var(--muted); font-size: 12px; }
+  .sim-result { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+    padding: 12px 14px; font-size: 12.5px; display: none; }
+  .sim-result.show { display: block; }
+  .sim-result .sim-line { display: flex; justify-content: space-between; padding: 3px 0; }
+  .sim-result .sim-line + .sim-line { border-top: 1px solid var(--line-soft); }
+  .sim-result .sim-name { color: var(--ink); }
+  .sim-result .sim-detail { color: var(--muted); font-family: var(--mono); }
+  .sim-total { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--muted); font-family: var(--mono); }
+
+  .summary { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    display: grid; grid-template-columns: 1.2fr 1fr 1fr; }
   .sum-cell { padding: 15px 18px; }
   .sum-cell + .sum-cell { border-left: 1px solid var(--line-soft); }
   .sum-label { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-  .sum-value { margin-top: 6px; font-size: 25px; font-weight: 600; letter-spacing: -.01em; }
-  .sum-value small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 2px; }
+  .sum-value { margin-top: 6px; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+  .sum-value small { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 2px; }
+  .sum-value.pos { color: var(--done); }
+  .sum-value.neg { color: var(--err); }
+
+  .spark-wrap { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    padding: 10px 14px; }
+  .spark-label { color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+  canvas#spark { width: 100%; height: 44px; display: block; }
 
   .list { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
   .card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 15px 16px 17px; }
+  .card.hidden-filter { display: none; }
   .card-top { display: flex; align-items: center; gap: 10px; }
   .name-input { flex: 1; min-width: 0; background: transparent; border: none; color: var(--ink); font-family: var(--jp);
     font-size: 16px; font-weight: 600; padding: 4px 2px; border-bottom: 1px solid transparent; }
   .name-input::placeholder { color: var(--muted-2); font-weight: 500; }
   .name-input:focus { outline: none; border-bottom-color: var(--accent); }
+  .move-btn { flex: none; cursor: pointer; background: transparent; border: none; color: var(--muted-2);
+    font-size: 14px; line-height: 1; width: 24px; height: 30px; border-radius: 6px; transition: .15s; }
+  .move-btn:hover { color: var(--accent); background: var(--surface-2); }
+  .move-btn:disabled { opacity: .25; cursor: default; }
+  .move-btn:disabled:hover { color: var(--muted-2); background: transparent; }
   .del { flex: none; cursor: pointer; background: transparent; border: none; color: var(--muted-2);
     font-size: 20px; line-height: 1; width: 30px; height: 30px; border-radius: 6px; transition: .15s; }
   .del:hover { color: var(--err); background: var(--surface-2); }
@@ -70,6 +114,7 @@
     font-family: var(--jp); font-size: 12px; padding: 6px 11px; border-radius: 7px; transition: .15s; }
   .fetch-btn:hover { border-color: var(--accent); }
   .fetch-btn:disabled { opacity: .5; }
+  .auto-label { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; margin-left: auto; }
   .fetch-status { margin-top: 7px; font-size: 11.5px; color: var(--muted); min-height: 15px; font-family: var(--mono); }
   .fetch-status.err { color: var(--err); }
   .fetch-status.ok { color: var(--done); }
@@ -78,6 +123,7 @@
   @keyframes pulse { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
 
   .fields { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr 1.1fr; gap: 14px; }
+  .fields2 { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .field-label { color: var(--muted); font-size: 11px; margin-bottom: 5px; }
   .input-row { display: flex; align-items: baseline; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 4px; transition: .15s; }
   .input-row:focus-within { border-bottom-color: var(--accent); }
@@ -92,6 +138,12 @@
   .preset { cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--muted);
     font-family: var(--mono); font-size: 11px; padding: 4px 9px; border-radius: 6px; transition: .12s; }
   .preset:hover { border-color: var(--accent); color: var(--ink); }
+
+  .pl-row { margin-top: 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    font-size: 12.5px; color: var(--muted); }
+  .pl-row b { font-family: var(--mono); font-weight: 600; }
+  .pl-row b.pos { color: var(--done); }
+  .pl-row b.neg { color: var(--err); }
 
   .result { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--line-soft);
     display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -114,11 +166,15 @@
   .empty p { margin: 0 0 4px; font-size: 14px; color: var(--ink); }
   .empty span { font-size: 12.5px; }
   .note { margin-top: 22px; color: var(--muted-2); font-size: 11.5px; text-align: center; line-height: 1.7; }
+  #fileImport { display: none; }
 
   @media (max-width: 520px) {
     .fields { grid-template-columns: 1fr 1fr; }
     .field-price { grid-column: 1 / -1; }
-    .sum-value { font-size: 21px; }
+    .fields2 { grid-template-columns: 1fr 1fr; }
+    .sum-value { font-size: 18px; }
+    .summary { grid-template-columns: 1fr 1fr; }
+    .summary .sum-cell:nth-child(3) { grid-column: 1 / -1; border-left: none; border-top: 1px solid var(--line-soft); }
   }
 </style>
 </head>
@@ -130,10 +186,31 @@
       <div class="subtitle">目標株数までの残り株数と必要額</div>
     </div>
     <div class="actions">
+      <button class="btn" id="themeBtn" title="表示テーマ切替">☾ テーマ</button>
       <button class="btn" id="refreshAll">↻ 全更新</button>
       <button class="btn" id="addBtn">＋ 追加</button>
     </div>
   </header>
+
+  <div class="toolbar">
+    <input type="text" class="search-input" id="searchInput" placeholder="銘柄名・コードで検索" />
+    <select id="sortSelect">
+      <option value="manual">並び替え：登録順</option>
+      <option value="pct">達成率の高い順</option>
+      <option value="needed">必要額の多い順</option>
+      <option value="name">銘柄名（あいうえお順）</option>
+    </select>
+    <button class="btn" id="exportBtn">⇩ 書き出し</button>
+    <button class="btn" id="importBtn">⇧ 読み込み</button>
+    <input type="file" id="fileImport" accept="application/json" />
+  </div>
+
+  <div class="budget-row">
+    <label for="budgetInput">予算シミュレーション</label>
+    <input type="number" id="budgetInput" inputmode="numeric" placeholder="例: 100000" />
+    <button class="btn" id="simBtn">配分を計算</button>
+  </div>
+  <div class="sim-result" id="simResult"></div>
 
   <div class="summary">
     <div class="sum-cell">
@@ -144,6 +221,15 @@
       <div class="sum-label">目標達成</div>
       <div class="sum-value num" id="sumDone">0<small> / 0 銘柄</small></div>
     </div>
+    <div class="sum-cell">
+      <div class="sum-label">評価損益 合計</div>
+      <div class="sum-value num" id="sumPL">¥0</div>
+    </div>
+  </div>
+
+  <div class="spark-wrap" id="sparkWrap" style="display:none;">
+    <div class="spark-label">必要額 合計の推移</div>
+    <canvas id="spark" width="600" height="44"></canvas>
   </div>
 
   <div class="list" id="list"></div>
@@ -160,9 +246,14 @@
 
 <script>
   const KEY = 'kabu_tracker_holdings';
+  const THEME_KEY = 'kabu_tracker_theme';
+  const HISTORY_KEY = 'kabu_tracker_history';
+  const UNIT = 100;
   let holdings = [];
+  let sortMode = 'manual';
+  let searchTerm = '';
 
-  const yen = n => '¥' + Math.round(n).toLocaleString('ja-JP');
+  const yen = n => (n < 0 ? '-¥' : '¥') + Math.round(Math.abs(n)).toLocaleString('ja-JP');
   const numFmt = n => Number(n || 0).toLocaleString('ja-JP');
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -170,37 +261,134 @@
   const $empty = document.getElementById('empty');
   const $sumNeeded = document.getElementById('sumNeeded');
   const $sumDone = document.getElementById('sumDone');
+  const $sumPL = document.getElementById('sumPL');
 
   function calc(h) {
     const cur = Math.max(0, Number(h.current) || 0);
     const tgt = Math.max(0, Number(h.target) || 0);
     const price = Math.max(0, Number(h.price) || 0);
+    const avgCost = Math.max(0, Number(h.avgCost) || 0);
+    const dividend = Math.max(0, Number(h.dividend) || 0);
     const remaining = Math.max(0, tgt - cur);
-    return { cur, tgt, price, remaining, needed: remaining * price,
-      done: tgt > 0 && cur >= tgt, pct: tgt > 0 ? Math.min(100, cur / tgt * 100) : 0 };
+    const units = Math.ceil(remaining / UNIT);
+    const pl = avgCost > 0 ? (price - avgCost) * cur : null;
+    const annualDividend = dividend > 0 && tgt > 0 ? dividend * tgt : null;
+    return {
+      cur, tgt, price, remaining, needed: remaining * price,
+      done: tgt > 0 && cur >= tgt, pct: tgt > 0 ? Math.min(100, cur / tgt * 100) : 0,
+      units, pl, annualDividend
+    };
+  }
+
+  // ---------- テーマ ----------
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('themeBtn').textContent = t === 'light' ? '☼ テーマ' : '☾ テーマ';
+  }
+  function loadTheme() {
+    let t = 'dark';
+    try { t = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) {}
+    applyTheme(t);
+  }
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    applyTheme(cur);
+    try { localStorage.setItem(THEME_KEY, cur); } catch (e) {}
+  });
+
+  // ---------- 通知 ----------
+  function notifyAchieved(h) {
+    if (!('Notification' in window)) return;
+    const fire = () => {
+      try { new Notification('目標達成', { body: (h.name || h.symbol || '銘柄') + ' が目標株数に到達しました' }); } catch (e) {}
+    };
+    if (Notification.permission === 'granted') fire();
+    else if (Notification.permission !== 'denied') Notification.requestPermission().then(p => { if (p === 'granted') fire(); });
+  }
+
+  // ---------- 履歴・スパークライン ----------
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch (e) { return []; }
+  }
+  function pushHistory(total) {
+    const hist = loadHistory();
+    const today = new Date().toISOString().slice(0, 10);
+    if (hist.length && hist[hist.length - 1].date === today) hist[hist.length - 1].total = total;
+    else hist.push({ date: today, total });
+    while (hist.length > 60) hist.shift();
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+    drawSpark(hist);
+  }
+  function drawSpark(hist) {
+    const wrap = document.getElementById('sparkWrap');
+    const cv = document.getElementById('spark');
+    if (!hist || hist.length < 2) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    const ctx = cv.getContext('2d');
+    const w = cv.width, h = cv.height;
+    ctx.clearRect(0, 0, w, h);
+    const vals = hist.map(p => p.total);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = max - min || 1;
+    ctx.beginPath();
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    ctx.strokeStyle = isLight ? '#3E6E80' : '#5E92A6';
+    ctx.lineWidth = 2;
+    vals.forEach((v, i) => {
+      const x = (i / (vals.length - 1)) * (w - 4) + 2;
+      const y = h - 4 - ((v - min) / range) * (h - 8);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
   }
 
   function updateSummary() {
-    let total = 0, doneCount = 0;
-    holdings.forEach(h => { const c = calc(h); total += c.needed; if (c.done) doneCount++; });
+    let total = 0, doneCount = 0, plTotal = 0, hasPl = false;
+    holdings.forEach(h => {
+      const c = calc(h);
+      total += c.needed;
+      if (c.done) doneCount++;
+      if (c.pl !== null) { plTotal += c.pl; hasPl = true; }
+    });
     $sumNeeded.textContent = yen(total);
     $sumDone.innerHTML = doneCount + '<small> / ' + holdings.length + ' 銘柄</small>';
+    $sumPL.textContent = hasPl ? yen(plTotal) : '—';
+    $sumPL.classList.toggle('pos', hasPl && plTotal > 0);
+    $sumPL.classList.toggle('neg', hasPl && plTotal < 0);
+    pushHistory(total);
   }
 
   function refreshCard(card, h) {
     const c = calc(h);
-    card.querySelector('.remaining').innerHTML = '残り <b>' + numFmt(c.remaining) + '</b> 株';
+    card.querySelector('.remaining').innerHTML = '残り <b>' + numFmt(c.remaining) + '</b> 株' +
+      (c.remaining > 0 ? ' <span style="color:var(--muted-2)">(' + numFmt(c.units) + '単元)</span>' : '');
     const $n = card.querySelector('.needed');
     $n.textContent = yen(c.needed); $n.classList.toggle('done-c', c.done);
     const $f = card.querySelector('.fill');
     $f.style.width = c.pct + '%'; $f.classList.toggle('done-f', c.done);
     card.querySelector('.pct').innerHTML = c.done ? '<span class="chip">達成</span>' : (Math.round(c.pct) + '%');
+
+    const $pl = card.querySelector('.pl-row');
+    const parts = [];
+    if (c.pl !== null) {
+      const cls = c.pl > 0 ? 'pos' : (c.pl < 0 ? 'neg' : '');
+      parts.push('評価損益 <b class="' + cls + '">' + yen(c.pl) + '</b>');
+    }
+    if (c.annualDividend !== null) parts.push('目標達成時の年間配当 <b>' + yen(c.annualDividend) + '</b>');
+    $pl.innerHTML = parts.join(' ・ ');
+    $pl.style.display = parts.length ? 'flex' : 'none';
+
+    const filterOk = !searchTerm || (h.name || '').toLowerCase().includes(searchTerm) || (h.symbol || '').toLowerCase().includes(searchTerm);
+    card.classList.toggle('hidden-filter', !filterOk);
+
+    if (c.done && !h._notified) { h._notified = true; notifyAchieved(h); }
+    if (!c.done) h._notified = false;
   }
 
   function save() {
     try {
-      const clean = holdings.map(({ id, name, symbol, current, target, price }) =>
-        ({ id, name, symbol, current, target, price }));
+      const clean = holdings.map(({ id, name, symbol, current, target, price, avgCost, dividend, lastFetched }) =>
+        ({ id, name, symbol, current, target, price, avgCost, dividend, lastFetched }));
       localStorage.setItem(KEY, JSON.stringify(clean));
     } catch (e) {}
   }
@@ -248,11 +436,11 @@
     setStatus(card, '<span class="dot"></span>株価を取得中…', '');
     try {
       const r = await stooqLookup(sym);
-      h.price = r.price; h._lastSym = sym;
+      h.price = r.price; h._lastSym = sym; h.lastFetched = Date.now();
       card.querySelector('.f-price').value = r.price;
       refreshCard(card, h); updateSummary();
       const when = (r.date || '') + (r.time && r.time !== '00:00:00' ? ' ' + r.time.slice(0,5) : '');
-      setStatus(card, '✓ ' + yen(r.price) + (when ? ' ・ ' + when : '') + ' ・ ' + r.symbol, 'ok');
+      setStatus(card, '✓ ' + yen(r.price) + (when ? ' ・ ' + when : '') + ' ・ ' + r.symbol + ' ・ 更新 ' + new Date(h.lastFetched).toLocaleTimeString('ja-JP'), 'ok');
       save();
     } catch (e) {
       setStatus(card, '取得できませんでした。株価欄に手動入力してください（コード末尾に .jp / .us を付けると改善する場合あり）', 'err');
@@ -264,8 +452,11 @@
   function buildCard(h) {
     const card = document.createElement('div');
     card.className = 'card';
+    card.dataset.id = h.id;
     card.innerHTML =
       '<div class="card-top">' +
+        '<button class="move-btn up" title="上へ">▲</button>' +
+        '<button class="move-btn down" title="下へ">▼</button>' +
         '<input class="name-input" type="text" placeholder="銘柄名（例：タカラトミー）" />' +
         '<button class="del" title="削除">×</button>' +
       '</div>' +
@@ -284,6 +475,13 @@
         '<div class="field-price"><div class="field-label">現在株価</div>' +
           '<div class="input-row"><span class="yen">¥</span><input class="nin f-price" type="number" min="0" inputmode="decimal" placeholder="0" /></div></div>' +
       '</div>' +
+      '<div class="fields2">' +
+        '<div><div class="field-label">取得単価（任意）</div>' +
+          '<div class="input-row"><span class="yen">¥</span><input class="nin f-avgcost" type="number" min="0" inputmode="decimal" placeholder="0" /></div></div>' +
+        '<div><div class="field-label">1株配当（任意）</div>' +
+          '<div class="input-row"><span class="yen">¥</span><input class="nin f-dividend" type="number" min="0" inputmode="decimal" placeholder="0" /></div></div>' +
+      '</div>' +
+      '<div class="pl-row"></div>' +
       '<div class="result"><div class="remaining"></div>' +
         '<div class="needed-wrap"><div class="needed-label">目標まで必要額</div><div class="needed num">¥0</div></div></div>' +
       '<div class="gauge"><div class="track"><div class="fill"></div></div><div class="pct"></div></div>';
@@ -293,12 +491,16 @@
     const curI = card.querySelector('.f-current');
     const tgtI = card.querySelector('.f-target');
     const priceI = card.querySelector('.f-price');
+    const avgI = card.querySelector('.f-avgcost');
+    const divI = card.querySelector('.f-dividend');
 
     nameI.value = h.name || ''; symI.value = h.symbol || '';
     curI.value = h.current ?? ''; tgtI.value = h.target ?? ''; priceI.value = h.price ?? '';
+    avgI.value = h.avgCost ?? ''; divI.value = h.dividend ?? '';
+    if (h.lastFetched) setStatus(card, '前回更新 ' + new Date(h.lastFetched).toLocaleString('ja-JP'), '');
 
-    nameI.addEventListener('input', () => { h.name = nameI.value; save(); });
-    symI.addEventListener('input', () => { h.symbol = symI.value; save(); });
+    nameI.addEventListener('input', () => { h.name = nameI.value; refreshCard(card, h); save(); });
+    symI.addEventListener('input', () => { h.symbol = symI.value; refreshCard(card, h); save(); });
     const onNum = (prop, input) => () => {
       h[prop] = input.value === '' ? '' : Number(input.value);
       refreshCard(card, h); updateSummary(); save();
@@ -306,6 +508,8 @@
     curI.addEventListener('input', onNum('current', curI));
     tgtI.addEventListener('input', onNum('target', tgtI));
     priceI.addEventListener('input', onNum('price', priceI));
+    avgI.addEventListener('input', onNum('avgCost', avgI));
+    divI.addEventListener('input', onNum('dividend', divI));
 
     symI.addEventListener('blur', () => {
       const s = buildSym(h.symbol);
@@ -323,38 +527,143 @@
       card.remove(); updateSummary(); toggleEmpty(); save();
     });
 
+    card.querySelector('.up').addEventListener('click', () => moveHolding(h.id, -1));
+    card.querySelector('.down').addEventListener('click', () => moveHolding(h.id, 1));
+
     refreshCard(card, h);
     return card;
   }
 
+  function moveHolding(id, dir) {
+    const i = holdings.findIndex(x => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= holdings.length) return;
+    [holdings[i], holdings[j]] = [holdings[j], holdings[i]];
+    sortMode = 'manual'; document.getElementById('sortSelect').value = 'manual';
+    save(); renderAll();
+  }
+
   function toggleEmpty() { $empty.style.display = holdings.length ? 'none' : 'block'; }
+
+  function sortedHoldings() {
+    const arr = holdings.slice();
+    if (sortMode === 'pct') arr.sort((a, b) => calc(b).pct - calc(a).pct);
+    else if (sortMode === 'needed') arr.sort((a, b) => calc(b).needed - calc(a).needed);
+    else if (sortMode === 'name') arr.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+    return arr;
+  }
 
   function renderAll() {
     $list.innerHTML = '';
-    holdings.forEach(h => $list.appendChild(buildCard(h)));
+    sortedHoldings().forEach((h, idx, arr) => {
+      const card = buildCard(h);
+      const up = card.querySelector('.up'), down = card.querySelector('.down');
+      const manual = sortMode === 'manual';
+      up.style.display = manual ? '' : 'none';
+      down.style.display = manual ? '' : 'none';
+      if (manual) { up.disabled = idx === 0; down.disabled = idx === arr.length - 1; }
+      $list.appendChild(card);
+    });
     updateSummary(); toggleEmpty();
   }
 
   document.getElementById('addBtn').addEventListener('click', () => {
-    const h = { id: uid(), name: '', symbol: '', current: '', target: '', price: '' };
+    const h = { id: uid(), name: '', symbol: '', current: '', target: '', price: '', avgCost: '', dividend: '' };
     holdings.push(h);
-    const card = buildCard(h);
-    $list.appendChild(card); toggleEmpty(); updateSummary();
-    card.querySelector('.name-input').focus();
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    renderAll();
+    const card = $list.querySelector('[data-id="' + h.id + '"]');
+    if (card) { card.querySelector('.name-input').focus(); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
   });
 
-  document.getElementById('refreshAll').addEventListener('click', async () => {
+  async function refreshAllPrices() {
     const btn = document.getElementById('refreshAll'); btn.disabled = true;
-    const cards = Array.from($list.children);
-    for (let i = 0; i < holdings.length; i++) {
-      const h = holdings[i], card = cards[i];
+    for (const h of holdings) {
+      const card = $list.querySelector('[data-id="' + h.id + '"]');
       if (card && buildSym(h.symbol)) { h._lastSym = null; await fetchAndFill(card, h); }
     }
     btn.disabled = false;
+  }
+  document.getElementById('refreshAll').addEventListener('click', refreshAllPrices);
+
+  // ---------- 検索 ----------
+  document.getElementById('searchInput').addEventListener('input', e => {
+    searchTerm = e.target.value.trim().toLowerCase();
+    $list.querySelectorAll('.card').forEach(card => {
+      const h = holdings.find(x => x.id === card.dataset.id);
+      if (h) refreshCard(card, h);
+    });
   });
 
-  load(); renderAll();
+  // ---------- 並び替え ----------
+  document.getElementById('sortSelect').addEventListener('change', e => {
+    sortMode = e.target.value; renderAll();
+  });
+
+  // ---------- 予算シミュレーション ----------
+  document.getElementById('simBtn').addEventListener('click', () => {
+    const budgetEl = document.getElementById('budgetInput');
+    let budget = Number(budgetEl.value) || 0;
+    const $res = document.getElementById('simResult');
+    const candidates = holdings
+      .map(h => ({ h, c: calc(h) }))
+      .filter(x => x.c.remaining > 0 && x.c.price > 0)
+      .sort((a, b) => a.c.needed - b.c.needed);
+
+    if (!budget || !candidates.length) {
+      $res.classList.add('show');
+      $res.innerHTML = '<div class="sim-line"><span class="sim-name">予算と、価格・残り株数のある未達成銘柄が必要です</span></div>';
+      return;
+    }
+    let remainBudget = budget;
+    const lines = [];
+    candidates.forEach(({ h, c }) => {
+      if (remainBudget <= 0) return;
+      const affordable = Math.min(c.remaining, Math.floor(remainBudget / c.price));
+      if (affordable <= 0) return;
+      const cost = affordable * c.price;
+      remainBudget -= cost;
+      lines.push('<div class="sim-line"><span class="sim-name">' + (h.name || h.symbol || '無名銘柄') +
+        '</span><span class="sim-detail">+' + numFmt(affordable) + '株 ・ ' + yen(cost) + '</span></div>');
+    });
+    if (!lines.length) lines.push('<div class="sim-line"><span class="sim-name">この予算では1株も購入できません</span></div>');
+    lines.push('<div class="sim-total">使用額 ' + yen(budget - remainBudget) + ' ／ 残予算 ' + yen(remainBudget) + '</div>');
+    $res.classList.add('show');
+    $res.innerHTML = lines.join('');
+  });
+
+  // ---------- 書き出し / 読み込み ----------
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const data = JSON.stringify(holdings.map(({ id, name, symbol, current, target, price, avgCost, dividend, lastFetched }) =>
+      ({ id, name, symbol, current, target, price, avgCost, dividend, lastFetched })), null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'kabu-tracker-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileImport').click());
+  document.getElementById('fileImport').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!Array.isArray(data)) throw new Error('invalid');
+        data.forEach(d => { if (!d.id) d.id = uid(); });
+        holdings = data;
+        save(); renderAll();
+      } catch (err) { alert('読み込みに失敗しました。正しいJSONファイルを選択してください。'); }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  loadTheme(); load(); renderAll();
+  drawSpark(loadHistory());
+
+  // 30分ごとに自動更新
+  setInterval(() => { if (holdings.some(h => buildSym(h.symbol))) refreshAllPrices(); }, 30 * 60 * 1000);
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
