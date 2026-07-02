@@ -49,6 +49,22 @@
   .btn:active { transform: translateY(1px); }
   .btn:disabled { opacity: .5; }
 
+  .settings-panel { margin-top: 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface);
+    padding: 14px 16px; display: none; }
+  .settings-panel.open { display: block; }
+  .settings-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .settings-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .settings-row label { color: var(--muted); font-size: 12px; min-width: 160px; }
+  .settings-row input[type="text"] { flex: 1; min-width: 180px; background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--ink); font-family: var(--mono); font-size: 13px; padding: 7px 10px; border-radius: 7px; }
+  .settings-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  .settings-hint { color: var(--muted-2); font-size: 11px; margin-top: 2px; line-height: 1.6; }
+  .settings-hint a { color: var(--accent); text-decoration: none; }
+  .settings-hint a:hover { text-decoration: underline; }
+  .key-status { font-size: 11px; font-family: var(--mono); padding: 2px 7px; border-radius: 99px; flex: none; }
+  .key-status.set { background: var(--done-soft); color: var(--done); }
+  .key-status.unset { background: var(--surface-2); color: var(--muted); }
+
   .toolbar { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .toolbar input[type="text"], .toolbar select {
     background: var(--surface); border: 1px solid var(--line); color: var(--ink);
@@ -214,11 +230,26 @@
       <div class="subtitle">目標株数までの残り株数と必要額</div>
     </div>
     <div class="actions">
+      <button class="btn" id="settingsBtn">⚙ API設定</button>
       <button class="btn" id="themeBtn" title="表示テーマ切替">☾ テーマ</button>
       <button class="btn" id="refreshAll">↻ 全更新</button>
       <button class="btn" id="addBtn">＋ 追加</button>
     </div>
   </header>
+
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-title">株価取得 API設定</div>
+    <div class="settings-row">
+      <label>Alpha Vantage APIキー</label>
+      <input type="text" id="avKeyInput" placeholder="例: ABCDE12345FGHIJ" spellcheck="false" autocomplete="off" />
+      <span class="key-status unset" id="avKeyStatus">未設定</span>
+    </div>
+    <div class="settings-hint">
+      無料のAPIキーを取得：<a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener">alphavantage.co</a>（メールアドレスのみ、クレジットカード不要）<br>
+      キーを設定するとプロキシ不要でブラウザから直接株価を取得できます。無料プランは1日25回まで。<br>
+      未設定の場合は Yahoo Finance / Stooq + 複数のCORSプロキシを順に試みます。
+    </div>
+  </div>
 
   <div class="toolbar">
     <div class="view-switch" id="viewSwitch">
@@ -572,40 +603,134 @@
     catch (e) { holdings = []; }
   }
 
-  // ---- Stooq 株価取得（直接 → ダメならCORSプロキシ）----
+  // ---- API設定 ----
+  const AV_KEY = 'kabu_av_apikey';
+  function getAvKey() { try { return localStorage.getItem(AV_KEY) || ''; } catch (e) { return ''; } }
+  function saveAvKey(k) { try { localStorage.setItem(AV_KEY, k); } catch (e) {} }
+  function updateKeyStatus() {
+    const k = getAvKey();
+    const el = document.getElementById('avKeyStatus');
+    if (el) { el.textContent = k ? '設定済み' : '未設定'; el.className = 'key-status ' + (k ? 'set' : 'unset'); }
+  }
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    const p = document.getElementById('settingsPanel');
+    p.classList.toggle('open');
+    if (p.classList.contains('open')) {
+      const inp = document.getElementById('avKeyInput');
+      inp.value = getAvKey();
+      inp.focus();
+    }
+  });
+  document.getElementById('avKeyInput').addEventListener('input', e => {
+    saveAvKey(e.target.value.trim()); updateKeyStatus();
+  });
+
+  // ---- 株価取得 ----
   function buildSym(raw) {
     const s = (raw || '').trim();
     if (!s) return '';
-    if (/^\d{4}$/.test(s)) return s + '.jp';   // 日本株4桁コード
+    if (/^\d{4}$/.test(s)) return s + '.jp';
     return s.toLowerCase();
   }
-  function parseStooq(csv) {
-    const lines = csv.trim().split('\n');
-    if (lines.length < 2) return null;
-    const c = lines[1].split(',');             // Symbol,Date,Time,Close
-    const close = parseFloat(c[3]);
-    if (!isFinite(close) || c[3] === 'N/D') return null;
-    return { price: close, date: c[1], time: c[2], symbol: c[0] };
+  function buildYahooSym(raw) {
+    const s = (raw || '').trim();
+    if (!s) return '';
+    if (/^\d{4}$/.test(s)) return s + '.T';
+    return s.toUpperCase();
   }
+  function buildAvSym(raw) {
+    const s = (raw || '').trim();
+    if (!s) return '';
+    if (/^\d{4}$/.test(s)) return s + '.T';   // 東証コード .T
+    return s.toUpperCase();
+  }
+
   async function fetchWithTimeout(url, ms) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), ms);
     try { return await fetch(url, { signal: ctrl.signal }); }
     finally { clearTimeout(t); }
   }
-  async function stooqLookup(sym) {
-    const url = 'https://stooq.com/q/l/?s=' + encodeURIComponent(sym) + '&f=sd2t2c&h&e=csv';
-    const attempts = [
+
+  function parseAlphaVantage(text) {
+    try {
+      const data = JSON.parse(text);
+      if (data['Information'] || data['Note']) return null; // rate limit
+      const q = data['Global Quote'];
+      if (!q) return null;
+      const price = parseFloat(q['05. price']);
+      if (!isFinite(price)) return null;
+      return { price, date: q['07. latest trading day'] || '', time: '', symbol: q['01. symbol'] || '' };
+    } catch (e) { return null; }
+  }
+  function parseYahoo(text) {
+    try {
+      const data = JSON.parse(text);
+      const result = data && data.chart && data.chart.result && data.chart.result[0];
+      const meta = result && result.meta;
+      if (!meta || !isFinite(meta.regularMarketPrice)) return null;
+      const t = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : null;
+      return {
+        price: meta.regularMarketPrice,
+        date: t ? t.toISOString().slice(0, 10) : '',
+        time: t ? t.toTimeString().slice(0, 8) : '',
+        symbol: meta.symbol || ''
+      };
+    } catch (e) { return null; }
+  }
+  function parseStooq(csv) {
+    const lines = csv.trim().split('\n');
+    if (lines.length < 2) return null;
+    const c = lines[1].split(',');
+    const close = parseFloat(c[3]);
+    if (!isFinite(close) || c[3] === 'N/D') return null;
+    return { price: close, date: c[1], time: c[2], symbol: c[0] };
+  }
+
+  function proxiedUrls(url) {
+    return [
       url,
       'https://corsproxy.io/?url=' + encodeURIComponent(url),
       'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
       'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
       'https://thingproxy.freeboard.io/fetch/' + url
     ];
-    for (const a of attempts) {
+  }
+
+  async function lookupPrice(rawSymbol) {
+    const sources = [];
+
+    // 1. Alpha Vantage（APIキーがあれば最優先・プロキシ不要）
+    const avKey = getAvKey();
+    const avSym = buildAvSym(rawSymbol);
+    if (avKey && avSym) {
+      const avUrl = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol='
+        + encodeURIComponent(avSym) + '&apikey=' + encodeURIComponent(avKey);
+      sources.push({ url: avUrl, parser: parseAlphaVantage, label: 'Alpha Vantage' });
+    }
+
+    // 2. Yahoo Finance（直接＋プロキシ）
+    const yahooSym = buildYahooSym(rawSymbol);
+    if (yahooSym) {
+      const yUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+        + encodeURIComponent(yahooSym) + '?interval=1d&range=1d';
+      proxiedUrls(yUrl).forEach(u => sources.push({ url: u, parser: parseYahoo, label: 'Yahoo Finance' }));
+    }
+
+    // 3. Stooq（直接＋プロキシ）
+    const stooqSym = buildSym(rawSymbol);
+    if (stooqSym) {
+      const sUrl = 'https://stooq.com/q/l/?s=' + encodeURIComponent(stooqSym) + '&f=sd2t2c&h&e=csv';
+      proxiedUrls(sUrl).forEach(u => sources.push({ url: u, parser: parseStooq, label: 'Stooq' }));
+    }
+
+    for (const s of sources) {
       try {
-        const r = await fetchWithTimeout(a, 8000);
-        if (r.ok) { const p = parseStooq(await r.text()); if (p) return p; }
+        const r = await fetchWithTimeout(s.url, 8000);
+        if (r.ok) {
+          const p = s.parser(await r.text());
+          if (p) { p._source = s.label; return p; }
+        }
       } catch (e) {}
     }
     throw new Error('取得失敗');
@@ -617,22 +742,23 @@
   }
 
   async function fetchAndFill(card, h) {
-    const sym = buildSym(h.symbol);
-    if (!sym) { setStatus(card, '証券コードを入力してください（例: 7867）', 'err'); return; }
+    const raw = (h.symbol || '').trim();
+    if (!raw) { setStatus(card, '証券コードを入力してください（例: 7867）', 'err'); return; }
     if (h._fetching) return;
     h._fetching = true;
     const btn = card.querySelector('.fetch-btn'); if (btn) btn.disabled = true;
     setStatus(card, '<span class="dot"></span>株価を取得中…', '');
     try {
-      const r = await stooqLookup(sym);
-      h.price = r.price; h._lastSym = sym; h.lastFetched = Date.now();
+      const r = await lookupPrice(raw);
+      h.price = r.price; h._lastSym = raw.toLowerCase(); h.lastFetched = Date.now();
       card.querySelector('.f-price').value = r.price;
       refreshCard(card, h); updateSummary();
-      const when = (r.date || '') + (r.time && r.time !== '00:00:00' ? ' ' + r.time.slice(0,5) : '');
-      setStatus(card, '✓ ' + yen(r.price) + (when ? ' ・ ' + when : '') + ' ・ ' + r.symbol + ' ・ 更新 ' + new Date(h.lastFetched).toLocaleTimeString('ja-JP'), 'ok');
+      const when = (r.date || '') + (r.time && r.time !== '00:00:00' ? ' ' + r.time.slice(0, 5) : '');
+      setStatus(card, '✓ ' + yen(r.price) + (when ? ' ・ ' + when : '') + ' [' + (r._source || '') + '] ・ ' + new Date(h.lastFetched).toLocaleTimeString('ja-JP'), 'ok');
       save();
     } catch (e) {
-      setStatus(card, '取得できませんでした。株価欄に手動入力してください（コード末尾に .jp / .us を付けると改善する場合あり）', 'err');
+      const hasKey = !!getAvKey();
+      setStatus(card, '取得できませんでした。' + (hasKey ? '' : '⚙ API設定でAlpha VantageのAPIキーを入力すると成功率が上がります。') + '株価欄に手動入力することもできます。', 'err');
     } finally {
       h._fetching = false; if (btn) btn.disabled = false;
     }
@@ -701,7 +827,7 @@
     divI.addEventListener('input', onNum('dividend', divI));
 
     symI.addEventListener('blur', () => {
-      const s = buildSym(h.symbol);
+      const s = (h.symbol || '').trim().toLowerCase();
       if (s && s !== h._lastSym && !h._fetching) fetchAndFill(card, h);
     });
     card.querySelector('.fetch-btn').addEventListener('click', () => { h._lastSym = null; fetchAndFill(card, h); });
@@ -849,7 +975,7 @@
     reader.readAsText(file);
   });
 
-  loadTheme(); load(); renderAll();
+  loadTheme(); updateKeyStatus(); load(); renderAll();
   drawSpark(loadHistory());
 
   // 30分ごとに自動更新
